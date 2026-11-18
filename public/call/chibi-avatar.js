@@ -105,6 +105,12 @@
         if(!neutral)throw Error('Neutral sprite missing from manifest');
         await loadImage(neutral);
         if(!this.images.has('neutral_closed'))throw Error('Neutral sprite unavailable');
+        try{
+          if(window.SeraSwayRig)this.rig=new SeraSwayRig(()=>{
+            this.rig?.destroy();this.rig=null;this.element.dataset.renderer='png-fallback';this.render();
+          });
+        }catch(error){console.warn('Sway unavailable; PNG renderer retained.',error);}
+        this.element.dataset.renderer=this.rig?'mesh':'png-fallback';
         this.element.dataset.ready='true';this.render();
         await Promise.all(entries.filter(([key])=>key!=='neutral_closed').map(loadImage));
         this.render();
@@ -157,6 +163,12 @@
       this.element.dataset.expression=this.expression;this.element.dataset.mouth=mouth;this.element.dataset.blink=this.blinking?'on':'off';
       const image=this.images.get(key);
       if(!image)return;
+      if(this.rig){
+        const instant=this.key?.endsWith('_open')&&(this.audio.paused||this.audio.ended||this.activity!=='speaking');
+        if(this.element.firstElementChild!==this.rig.canvas)this.element.replaceChildren(this.rig.canvas);
+        this.key=key;this.element.dataset.sprite=key;
+        this.rig.draw({key,image,state:this.activity,level:this.gate.level,instant});return;
+      }
       if(this.element.firstElementChild!==image) {
         const previous=this.element.firstElementChild;
         const stoppedMouth=this.key?.endsWith('_open')&&(this.audio.paused||this.audio.ended||this.activity!=='speaking');
@@ -168,7 +180,7 @@
         }
       }
     }
-    destroy() {cancelAnimationFrame(this.frame);this.gate.reset();this.source?.disconnect();}
+    destroy() {cancelAnimationFrame(this.frame);this.gate.reset();this.rig?.destroy();this.source?.disconnect();}
   }
   window.SeraChibi={Avatar,MouthGate,AudioRing,SpeechInterruptGate,normalizeExpression};
 })();

@@ -1,11 +1,11 @@
 # Seraphine Call
 
-A lightweight, single-character voice companion with a whole-PNG avatar, audio-driven mouth and blink states, microphone interruption, Kokoro speech, and an Ollama-backed conversation API. Includes the current chibi artwork and the structured-response leak fix.
+A lightweight, single-character voice companion with a whole-PNG avatar, audio-driven mouth and blink states, microphone interruption, Kokoro speech, and an Ollama-backed conversation API. Includes the current chibi artwork, two-joint procedural sway, and the structured-response leak fix.
 
 ## What is included
 
 - Plain HTML/CSS/JavaScript `/call`; no frontend build step.
-- Seven prepared PNG states, one whole frame at a time. No Live2D, runtime body cutouts, artwork generation, or automatic rigging.
+- Seven prepared PNG states on one shared two-joint mesh (waist and neck), with distinct idle/listening/thinking/speaking/sleep motion. No Live2D, runtime body cutouts, or artwork generation. Native WebGL; visible PNG fallback when unavailable or lost.
 - Green mic / blue Sera speech button with audio scale and glow, quiet-call breathing, audio ring, thinking-only rotation/wave, reduced-motion support.
 - Local STT adapter, chat API, optional Hermes Agent integration, structured farewell actions and playback-completion hangup.
 - Settings sheet, procedural UI cues, pre-generated reusable hearing-fallback WAV, and sleeping end state.
@@ -65,7 +65,7 @@ These use fixtures/mocks and do not call a model, microphones, or paid services.
 
 ## Artwork and motion
 
-Assets are in `public/assets/manual-ready-v1/manifest.json`. Other requested expressions fall back to neutral. Sprite switching uses a 45ms whole-frame opacity transition; there is no avatar geometry animation. Independent frames are not mathematically pixel-locked. Call-button breathing and canvas motion do not deform Sera. Proposed upper-body sway is documented in `MOTION_ROADMAP.md` and is not implemented.
+Assets are in `public/assets/manual-ready-v1/manifest.json`. Other requested expressions fall back to neutral. Sprite switching uses a 45ms premultiplied-alpha texture transition on a shared mesh; mouth/blink changes do not restart motion. Feet/lower body are pinned; face uses rigid motion with smooth neck/waist falloff. Reduced motion keeps the mesh static. Independent source frames are not mathematically pixel-locked. See `MOTION.md` for profiles, limits and fallback behavior. Prototype routes and debug controls are not shipped.
 
 ## License
 

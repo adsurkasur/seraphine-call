@@ -50,3 +50,5 @@
 @media(prefers-reduced-motion:reduce){#mainBtn::before{opacity:0;transition:none}}
 
 .app[data-call-state=speaking] #mainBtn{--mic-glow-color:56,189,248}
+
+.sera-chibi > .sera-sway{display:block;height:100%;width:auto;max-width:100%;aspect-ratio:2/3;object-fit:contain;pointer-events:none}
