@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="sera-release" content="call-v8-20261119-02">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Call Sera</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/call/chibi-avatar.css?v=call-v8-20261119-01" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="identity">
+        <div id="avatarDot" class="avatar-dot"></div>
+        <div class="title-wrap">
+          <h1>Seraphine</h1>
+          <div class="session-meta"><span id="sessionMode" class="session-pill">Chat · Auto STT</span><span id="callTimer" class="sub">00:00</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stage">
+      <div class="avatar-scene">
+        <canvas id="vizCanvas" aria-hidden="true"></canvas>
+        <div id="seraAvatar" class="sera-chibi" role="img" aria-label="Seraphine chibi avatar"></div>
+      </div>
+      <div id="statusBadge" class="status-badge" role="status" aria-live="polite">
+        <span id="statusIcon"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+
+    <div id="transcriptBox" class="transcript-box">
+      <div id="emptyHint" class="empty-hint">Start a call. Sera is here to listen.</div>
+    </div>
+
+    <div class="controls" aria-label="Call controls">
+            <button id="settingsBtn" class="ctrl-btn settings-button" type="button" aria-label="Call settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="callSettings">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0a2.34 2.34 0 0 0 3.319 1.915a2.34 2.34 0 0 1 2.33 4.033a2.34 2.34 0 0 0 0 3.831a2.34 2.34 0 0 1-2.33 4.033a2.34 2.34 0 0 0-3.319 1.915a2.34 2.34 0 0 1-4.659 0a2.34 2.34 0 0 0-3.32-1.915a2.34 2.34 0 0 1-2.33-4.033a2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button id="mainBtn" class="ctrl-btn primary" title="Start / Send / Interrupt" type="button"></button>
+      <button id="endBtn" class="ctrl-btn end" title="End Call" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>
+      </button>
+    </div>
+    <div id="micHint" class="mic-hint">Your microphone is off</div>
+  </div>
+
+  <dialog id="callSettings" class="call-settings" aria-labelledby="settingsTitle" lang="en">
+    <div class="settings-head">
+      <h2 id="settingsTitle">Call settings</h2>
+    <button type="button" class="settings-done" data-close-settings>Done</button>
+  
+    </div>
+    <fieldset>
+      <legend>Conversation mode</legend>
+      <div class="mode-seg" role="group" aria-label="Conversation mode">
+        <button id="modeChatBtn" class="mode-btn active" data-mode="chat" type="button" aria-pressed="true">Chat</button>
+        <button id="modeAgentBtn" class="mode-btn" data-mode="agent" type="button" aria-pressed="false">Agent</button>
+      </div>
+      <p>Chat for conversation. Agent can use tools and may take longer.</p>
+    </fieldset>
+    <label for="languageSelect">Speech input language</label>
+    <select id="languageSelect" aria-describedby="languageHelp">
+      <option value="en-US">English (EN)</option><option value="id-ID">Bahasa Indonesia (ID)</option>
+    </select>
+    <p id="languageHelp">Used to recognize your voice, not to choose Sera’s reply language.</p>
+    <label for="sttSelect">Speech recognition</label>
+    <select id="sttSelect" aria-describedby="sttHelp sttAvailability">
+      <option value="auto">Auto STT</option><option value="whisper">Whisper</option>
+    </select>
+    <p id="sttHelp">Auto uses browser recognition with a Whisper fallback. Whisper transcribes recordings on the server.</p>
+    <p id="sttAvailability" hidden>Auto STT is unavailable here. Whisper is used instead.</p>
+
+    <label class="sound-row" for="soundEffects">Sound effects <input id="soundEffects" type="checkbox" checked></label><p>Soft cues for starting, pausing, resuming, and ending a call.</p>
+  </dialog>
+  <audio id="seraAudio" playsinline></audio>
+
+  <script src="/call/chibi-avatar.js?v=call-v8-20261119-01"></script>
+  <script>
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+      try {
+        window.Telegram.WebApp.setHeaderColor("#070a0f");
+        window.Telegram.WebApp.setBackgroundColor("#070a0f");
+      } catch (e) {}
+    }
+
+    const ICONS = {
+      phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.19 18.85a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.08 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.06 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
+      close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
+      hangup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>',
+      mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
+      micOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
+      play: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
+      arrowUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+      loader: '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+      square: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+      volume: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+      dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>'
+    };
+
+    const avatarDot = document.getElementById("avatarDot");
+    const callTimerEl = document.getElementById("callTimer");
+    const statusBadge = document.getElementById("statusBadge");
+    const statusIcon = document.getElementById("statusIcon");
+    const statusText = document.getElementById("statusText");
+    const transcriptBox = document.getElementById("transcriptBox");
+    const emptyHint = document.getElementById("emptyHint");
+
+    const mainBtn = document.getElementById("mainBtn");
+    const endBtn = document.getElementById("endBtn");
+    const modeChatBtn = document.getElementById("modeChatBtn");
+    const modeAgentBtn = document.getElementById("modeAgentBtn");
+    const languageSelect = document.getElementById("languageSelect");
+    const sttSelect = document.getElementById("sttSelect");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsDialog = document.getElementById("callSettings");
+    const seraAudio = document.getElementById("seraAudio");
+    const avatar = new SeraChibi.Avatar(document.getElementById("seraAvatar"), seraAudio);
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    let callActive = false;
+    let state = "idle";
+    let isMuted = false;
+    let callMode = "chat";
+    let langCode = "en-US";
+    let sttMode = SpeechRecognition ? "auto" : "whisper";
+    let history = [];
+    let startEpoch = 0;
+    let timerInterval = null;
+
+    let audioCtx = null;
+    let micStream = null;
+    let micAnalyser = null;
+    let micData = null;
+
+    let recognition = null;
+    let interimEl = null;
+    let speechBuffer = "";
+    let silenceTimer = null;
+
+    let recorder = null;
+    let recChunks = [];
+    let vadLoopId = null;
+    let vadSpeechDetected = false;
+    let vadSilenceStart = 0;
+    let recStartTime = 0;
+
+    let bargeInLoopId = null;
+    let bargeSpeechStart = 0;
+    let activeAbortController = null;
+    let audioResolveFn = null;
+
+    function playCue(kind) {
+      if(!audioCtx || audioCtx.state!=='running' || !document.getElementById('soundEffects').checked)return 0;
+      if(kind==='pause' && !seraAudio.paused)return 0;
+      const notes={start:[440,660],resume:[520,700],pause:[440,330],end:[392,262],error:[220,207]}[kind];
+      const start=audioCtx.currentTime;
+      notes.forEach((frequency,i)=>{
+        const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=frequency;
+        const t=start+i*.075;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.035,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+.075);
+        o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+.08);o.onended=()=>{o.disconnect();g.disconnect();};
+      });return 190;
+    }
+
+    function getClientTimeContext() {
+      const now = new Date();
+      const hr = now.getHours();
+      let period = "Night";
+      if (hr >= 5 && hr < 12) period = "Morning";
+      else if (hr >= 12 && hr < 17) period = "Afternoon";
+      else if (hr >= 17 && hr < 21) period = "Evening";
+
+      let timezone = "Asia/Jakarta";
+      try {
+        timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Jakarta";
+      } catch (e) {}
+
+      let formatted = now.toString();
+      try {
+        formatted = new Intl.DateTimeFormat("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }).format(now);
+      } catch (e) {}
+
+      return { formatted, timezone, period };
+    }
+
+    function updateUiMeta() {
+      document.querySelector('.app').dataset.callState=state;
+      if(!callActive){mainBtn.style.setProperty('--mic-scale','1');mainBtn.style.setProperty('--mic-glow','0');}
+      avatar.setActivity(state);
+      modeChatBtn.classList.toggle("active", callMode === "chat");
+      modeAgentBtn.classList.toggle("active", callMode === "agent");
+      modeChatBtn.setAttribute("aria-pressed", String(callMode === "chat"));
+      modeAgentBtn.setAttribute("aria-pressed", String(callMode === "agent"));
+      languageSelect.value = langCode;
+      sttSelect.value = sttMode;
+      sttSelect.querySelector('[value="auto"]').disabled = !SpeechRecognition;
+      document.getElementById("sttAvailability").hidden = !!SpeechRecognition;
+
+
+      avatarDot.className = "avatar-dot";
+      statusBadge.className = "status-badge";
+      mainBtn.classList.remove("active-think", "active-speak");
+
+      if (state === "listening") {
+        avatarDot.classList.add("listening");
+        statusBadge.classList.add("listening");
+        statusIcon.innerHTML = ICONS.mic;
+        statusText.textContent = "Listening";
+
+      } else if (state === "thinking") {
+        avatarDot.classList.add("thinking");
+        statusBadge.classList.add("thinking");
+        statusIcon.innerHTML = ICONS.loader;
+        statusText.textContent = callMode === "agent" ? "Running agent tools..." : "Thinking";
+
+        mainBtn.classList.add("active-think");
+      } else if (state === "speaking") {
+        avatarDot.classList.add("speaking");
+        statusBadge.classList.add("speaking");
+        statusIcon.innerHTML = ICONS.volume;
+        statusText.textContent = isMuted ? "Speaking (Mic Muted)" : "Speaking";
+
+        mainBtn.classList.add("active-speak");
+      } else if (state === "muted") {
+        avatarDot.classList.add("muted");
+        statusBadge.classList.add("muted");
+        statusIcon.innerHTML = ICONS.micOff;
+        statusText.textContent = "Muted";
+
+      } else if (state === "ended") {
+        statusIcon.innerHTML = ICONS.dot;
+        statusText.textContent = "Call Ended";
+
+      } else {
+        statusIcon.innerHTML = ICONS.dot;
+        statusText.textContent = "Ready";
+
+      }
+      const action=!callActive?'Start call':isMuted?'Resume mic':'Pause mic';
+      mainBtn.innerHTML=!callActive?ICONS.phone:isMuted?ICONS.micOff:ICONS.mic;
+      mainBtn.title=action;mainBtn.setAttribute('aria-label',action);
+      mainBtn.setAttribute('aria-pressed',String(callActive&&!isMuted));
+      endBtn.innerHTML=callActive?ICONS.hangup:ICONS.close;
+      endBtn.title=callActive?'End call':'Close';endBtn.setAttribute('aria-label',endBtn.title);
+      document.getElementById('micHint').textContent=!callActive?'Your microphone is off':isMuted?'Microphone paused':'Microphone on · speech sends automatically';
+      document.getElementById('sessionMode').textContent=`${callMode==='agent'?'Agent':'Chat'} · ${sttMode==='whisper'?'Whisper':'Auto STT'}`;
+    }
+
+    function appendMessage(role, text) {
+      if (emptyHint) emptyHint.style.display = "none";
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      transcriptBox.appendChild(div);
+      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+      return div;
+    }
+
+    function setInterim(text) {
+      if (!text) {
+        if (interimEl) { interimEl.remove(); interimEl = null; }
+        return;
+      }
+      if (emptyHint) emptyHint.style.display = "none";
+      if (!interimEl) {
+        interimEl = document.createElement("div");
+        interimEl.className = "msg interim";
+        transcriptBox.appendChild(interimEl);
+      }
+      interimEl.textContent = text;
+      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+    }
+
+    function formatTimer(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, "0");
+      const s = String(sec % 60).padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    function startTimer() {
+      startEpoch = Date.now();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!callActive) return;
+        const sec = Math.floor((Date.now() - startEpoch) / 1000);
+        const modeTag = callMode === "agent" ? "Agent" : "Chat";
+        const engineLabel = sttMode === "whisper" ? "Whisper" : "Auto STT";
+        callTimerEl.textContent = formatTimer(sec);
+      }, 1000);
+    }
+
+    async function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+      avatar.connectAudio(audioCtx);
+      if (!micStream) {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+        const src = audioCtx.createMediaStreamSource(micStream);
+        micAnalyser = audioCtx.createAnalyser();
+        micAnalyser.fftSize = 1024;
+        src.connect(micAnalyser);
+        micData = new Uint8Array(micAnalyser.frequencyBinCount);
+      }
+    }
+
+    function stopBargeInMonitor() {
+      if (bargeInLoopId) {
+        cancelAnimationFrame(bargeInLoopId);
+        bargeInLoopId = null;
+      }
+      bargeSpeechStart = 0;
+    }
+
+    function startBargeInMonitor() {
+      stopBargeInMonitor();
+      if (!callActive || isMuted || !micAnalyser || state !== "speaking") return;
+      const td=new Float32Array(micAnalyser.fftSize);
+      const detector=new SeraChibi.SpeechInterruptGate();
+      const armedAt=performance.now()+180;let last=performance.now();
+      const tickBarge=()=>{
+        if(!callActive||isMuted||state!=='speaking'){stopBargeInMonitor();return;}
+        const now=performance.now(),dt=now-last;last=now;
+        if(now>=armedAt){
+          micAnalyser.getFloatTimeDomainData(td);let power=0;
+          for(const sample of td)power+=sample*sample;
+          const rms=Math.sqrt(power/td.length);
+          if(detector.update(rms,dt)){interruptSpeaking();return;}
+        }
+        bargeInLoopId = requestAnimationFrame(tickBarge);
+      };
+      bargeInLoopId = requestAnimationFrame(tickBarge);
+    }
+
+    function stopInputs() {
+      clearTimeout(silenceTimer);
+      silenceTimer = null;
+      stopBargeInMonitor();
+      if (recognition) {
+        try { recognition.onend = null; recognition.stop(); } catch (e) {}
+        recognition = null;
+      }
+      if (vadLoopId) {
+        cancelAnimationFrame(vadLoopId);
+        vadLoopId = null;
+      }
+      if (recorder && recorder.state !== "inactive") {
+        try { recorder.onstop = null; recorder.stop(); } catch (e) {}
+      }
+      recorder = null;
+    }
+
+    function startListening() {
+      if (!callActive) return;
+      stopInputs();
+      if (isMuted) {
+        state = "muted";
+        updateUiMeta();
+        return;
+      }
+      speechBuffer = "";
+      setInterim("");
+      state = "listening";
+      updateUiMeta();
+
+      if (sttMode === "auto" && SpeechRecognition) {
+        startWebSpeech();
+      } else {
+        startWhisperVad();
+      }
+    }
+
+    function commitUtterance(rawText) {
+      const clean = (rawText || "").trim();
+      setInterim("");
+      speechBuffer = "";
+      clearTimeout(silenceTimer);
+      if (!clean || !callActive) return;
+      stopInputs();
+      sendToSera(clean);
+    }
+
+    const INCOMPLETE_CLAUSE_RE = /\b(um+|uh+|hmm+|er+|ah+|like|so|and|but|because|or|well|anu|jadi|terus|kayak|soalnya|tapi|dan|atau)\s*[.,]*$/i;
+
+    function getAdaptiveSilenceDelay(text) {
+      if (!text) return 2600;
+      return INCOMPLETE_CLAUSE_RE.test(text.trim()) ? 4200 : 2600;
+    }
+
+    function scheduleSilenceCommit() {
+      clearTimeout(silenceTimer);
+      const delay = getAdaptiveSilenceDelay(speechBuffer);
+      silenceTimer = setTimeout(() => {
+        commitUtterance(speechBuffer);
+      }, delay);
+    }
+
+    function resetSilenceCountdownIfActive() {
+      if (silenceTimer) {
+        scheduleSilenceCommit();
+      }
+    }
+
+    function startWebSpeech() {
+      try {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = langCode;
+
+        let finalPart = "";
+        recognition.onresult = (event) => {
+          if (state !== "listening" || isMuted) return;
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const tr = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalPart += tr + " ";
+            } else {
+              interim += tr;
+            }
+          }
+          speechBuffer = (finalPart + interim).trim();
+          if (speechBuffer) {
+            setInterim(speechBuffer);
+            scheduleSilenceCommit();
+          }
+        };
+
+        recognition.onerror = (ev) => {
+          if (ev.error === "network" || ev.error === "service-not-allowed" || ev.error === "not-allowed") {
+            sttMode = "whisper";
+            updateUiMeta();
+            if (state === "listening" && !isMuted) startWhisperVad();
+          }
+        };
+
+        recognition.onend = () => {
+          if (state === "listening" && callActive && !isMuted && sttMode === "auto") {
+            if (speechBuffer.trim()) {
+              commitUtterance(speechBuffer);
+            } else {
+              try { recognition.start(); } catch (e) {}
+            }
+          }
+        };
+
+        recognition.start();
+      } catch (err) {
+        sttMode = "whisper";
+        updateUiMeta();
+        startWhisperVad();
+      }
+    }
+
+    function pickMime() {
+      const cands = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+      for (const m of cands) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+      }
+      return "";
+    }
+
+    function startWhisperVad() {
+      if (!micStream || !micAnalyser || isMuted) return;
+      const mime = pickMime();
+      recChunks = [];
+      vadSpeechDetected = false;
+      vadSilenceStart = 0;
+      recStartTime = performance.now();
+
+      try {
+        recorder = mime ? new MediaRecorder(micStream, { mimeType: mime }) : new MediaRecorder(micStream);
+      } catch (e) {
+        recorder = new MediaRecorder(micStream);
+      }
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) recChunks.push(ev.data);
+      };
+
+      recorder.onstop = async () => {
+        if (!callActive || isMuted || state !== "listening") return;
+        const blob = new Blob(recChunks, { type: recorder?.mimeType || "audio/webm" });
+        if (!vadSpeechDetected || blob.size < 1600) {
+          startWhisperVad();
+          return;
+        }
+        await transcribeAndSend(blob);
+      };
+
+      recorder.start(250);
+      const timeDomain = new Uint8Array(micAnalyser.fftSize);
+
+      const tickVad = () => {
+        if (state !== "listening" || !callActive || isMuted) return;
+        micAnalyser.getByteTimeDomainData(timeDomain);
+        let sumSq = 0;
+        for (let i = 0; i < timeDomain.length; i++) {
+          const v = (timeDomain[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / timeDomain.length);
+        const now = performance.now();
+
+        if (rms > 0.025) {
+          vadSpeechDetected = true;
+          vadSilenceStart = 0;
+          setInterim("Recording audio...");
+          resetSilenceCountdownIfActive();
+        } else if (vadSpeechDetected) {
+          if (!vadSilenceStart) vadSilenceStart = now;
+          if (now - vadSilenceStart > 2600) {
+            if (recorder && recorder.state === "recording") {
+              recorder.stop();
+              return;
+            }
+          }
+        } else if (now - recStartTime > 14000) {
+          if (recorder && recorder.state === "recording") {
+            recorder.stop();
+            return;
+          }
+        }
+        vadLoopId = requestAnimationFrame(tickVad);
+      };
+      vadLoopId = requestAnimationFrame(tickVad);
+    }
+
+    async function readApiResponse(response,service) {
+      const raw=await response.text();let data;
+      try{data=JSON.parse(raw);}catch{
+        const error=new Error(`${service} returned an unexpected response (HTTP ${response.status}). Check the backend connection.`);error.kind='connection';throw error;
+      }
+      if(!data||typeof data!=='object'||!response.ok||data.ok===false){
+        const error=new Error(`${service} is unavailable (HTTP ${response.status}). Please try again.`);
+        error.kind=data?.kind||'service';console.warn(service,data?.error||'request failed');throw error;
+      }return data;
+    }
+    let fallbackBusy=false,lastHearFallback=-Infinity,hearAgainAudio=null;
+    async function showHearAgain() {
+      if(!callActive||fallbackBusy)return;
+      if(performance.now()-lastHearFallback<12000){startListening();return;}
+      lastHearFallback=performance.now();fallbackBusy=true;const fallbackSession=startEpoch;
+      appendMessage('sera',"Sorry, I couldn't hear that clearly. Let's try again.");
+      avatar.setExpression('concerned');
+      try {
+        if(!hearAgainAudio){
+          hearAgainAudio=fetch('/audio/call-v8-20261119-01/hear-again.wav').then(async response=>{
+            if(!response.ok)throw Error('Fallback audio unavailable');
+            const bytes=new Uint8Array(await response.arrayBuffer());let binary='';for(const value of bytes)binary+=String.fromCharCode(value);
+            return btoa(binary);
+          }).catch(error=>{hearAgainAudio=null;throw error;});
+        }
+        const audio=await hearAgainAudio;
+        if(callActive&&startEpoch===fallbackSession)await playAudioReply(audio,'audio/wav');
+      }catch(error){console.warn(error);if(callActive&&startEpoch===fallbackSession)startListening();}
+      finally{fallbackBusy=false;}
+    }
+
+    async function transcribeAndSend(blob) {
+      stopInputs();
+      state = "thinking";
+      setInterim("Transcribing audio...");
+      updateUiMeta();
+      if (activeAbortController) activeAbortController.abort();
+      activeAbortController = new AbortController();
+      try {
+        const mime = blob.type || "audio/webm";
+        const ext = mime.includes("ogg") ? ".ogg" : (mime.includes("mp4") ? ".m4a" : ".webm");
+        const shortLang = langCode.startsWith("id") ? "id" : "en";
+        const resp = await fetch("/api/call/stt", {
+          method: "POST",
+          headers: {
+            "Content-Type": mime,
+            "X-Audio-Ext": ext,
+            "X-Language": shortLang,
+          },
+          body: blob,
+          signal: activeAbortController.signal,
+        });
+        const data = await readApiResponse(resp,"Speech recognition");
+        setInterim("");
+        const txt = (data.text || "").trim();
+        if (!callActive) return;
+        if (!txt) {await showHearAgain();return;}
+        await sendToSera(txt);
+      } catch (err) {
+        setInterim("");
+        if (err.name === "AbortError") return;
+        if (!callActive) return;
+        appendMessage('sera',err.message || 'Speech recognition could not connect. Please try again.');
+        avatar.setExpression('concerned');
+        isMuted=true;micStream?.getAudioTracks().forEach(t=>t.enabled=false);state='muted';updateUiMeta();
+      }
+    }
+
+    let pendingCallEnd=false;
+    async function sendToSera(userText) {
+      pendingCallEnd=false;const replySession=startEpoch;
+      state = "thinking";
+      updateUiMeta();
+      appendMessage("user", userText);
+
+      if (activeAbortController) activeAbortController.abort();
+      activeAbortController = new AbortController();
+
+      try {
+        const payload = {
+          text: userText,
+          history,
+          mode: callMode,
+          client_time: getClientTimeContext(),
+          call_control: true,
+        };
+        const resp = await fetch("/api/call/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: activeAbortController.signal,
+        });
+        const data = await readApiResponse(resp,"Conversation service");
+        activeAbortController = null;
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || "Server error");
+        }
+        if (!callActive||startEpoch!==replySession) return;
+
+        avatar.setExpression(data.expression);
+        const reply = (data.reply || "").replace(/\[(?:expr|expression)\s*[:=][^\]]*\]/gi, "").trim();
+        if(!reply||/^[\s]*[\{\[]/.test(reply))throw new Error('The response could not be read. Please try again.');
+        appendMessage("sera", reply);
+        history.push({ role: "user", content: userText });
+        history.push({ role: "assistant", content: reply });
+        if (history.length > 16) history = history.slice(-16);
+
+        if (data.audio_base64) {
+          await playAudioReply(data.audio_base64, data.audio_mime || "audio/wav", {endAfter:data.end_call===true});
+        } else {
+          startListening();
+        }
+      } catch (err) {
+        activeAbortController = null;
+        if (err.name === "AbortError") return;
+        if (!callActive) return;
+        appendMessage("sera", `Connection issue: ${err.message}`);
+        isMuted=true;micStream?.getAudioTracks().forEach(t=>t.enabled=false);state='muted';updateUiMeta();
+      }
+    }
+
+    function playAudioReply(b64, mime, {endAfter=false}={}) {
+      const playbackSession=startEpoch;pendingCallEnd=endAfter;
+      return new Promise((resolve) => {
+        audioResolveFn = resolve;
+        state = "speaking";
+        updateUiMeta();
+        seraAudio.src = `data:${mime};base64,${b64}`;
+        const finish = event => {
+          seraAudio.onended = null;
+          seraAudio.onerror = null;
+          stopBargeInMonitor();
+          const done = audioResolveFn;
+          audioResolveFn = null;
+          const shouldEnd=pendingCallEnd&&endAfter&&event?.type==='ended'&&callActive&&startEpoch===playbackSession;
+          pendingCallEnd=false;
+          if(shouldEnd)endCall({closeApp:false});
+          else if(callActive&&state==='speaking')startListening();
+          if(done)done(event?.type==='ended');
+        };
+        seraAudio.onended = finish;
+        seraAudio.onerror = finish;
+        seraAudio.play().then(() => {
+          if (callActive && state === "speaking" && !isMuted) {
+            startBargeInMonitor();
+          }
+        }).catch(finish);
+      });
+    }
+
+    function interruptSpeaking() {
+      pendingCallEnd=false;
+      stopBargeInMonitor();
+      if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+      }
+      seraAudio.onended = null;
+      seraAudio.onerror = null;
+      seraAudio.pause();
+      seraAudio.currentTime = 0;
+      if (audioResolveFn) {
+        const done = audioResolveFn;
+        audioResolveFn = null;
+        done();
+      }
+      startListening();
+    }
+
+    let controlBusy=false;
+    async function toggleCallStartOrAction() {
+      if(controlBusy)return;
+      controlBusy=true;mainBtn.disabled=true;
+      try {
+        if(!callActive){
+          await initAudio();callActive=true;isMuted=false;startTimer();
+          const delay=playCue('start');await new Promise(r=>setTimeout(r,delay));
+          if(callActive)startListening();
+        } else if(!isMuted){
+          isMuted=true;stopInputs();speechBuffer='';setInterim('');
+          micStream?.getAudioTracks().forEach(t=>t.enabled=false);
+          if(state==='listening')state='muted';playCue('pause');updateUiMeta();
+        } else {
+          isMuted=false;
+          const delay=playCue('resume');await new Promise(r=>setTimeout(r,delay));
+          if(!callActive)return;
+          micStream?.getAudioTracks().forEach(t=>t.enabled=true);
+          if(state==='speaking'&&!seraAudio.paused){updateUiMeta();startBargeInMonitor();}
+          else if(state==='thinking')updateUiMeta();else startListening();
+        }
+      }catch(error){appendMessage('sera','Microphone access failed. Check permissions and try again.');playCue('error');}
+      finally{controlBusy=false;mainBtn.disabled=false;updateUiMeta();}
+    }
+
+    mainBtn.addEventListener("click", toggleCallStartOrAction);
+
+
+
+    function endCall({closeApp=true}={}) {
+      pendingCallEnd=false;
+      callActive = false;
+      stopInputs();
+      playCue("end");
+      clearInterval(timerInterval);
+      if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+      }
+      seraAudio.onended = null;
+      seraAudio.onerror = null;
+      seraAudio.pause();
+      if (audioResolveFn) {
+        const done = audioResolveFn;
+        audioResolveFn = null;
+        done();
+      }
+      if (micStream) {
+        micStream.getTracks().forEach((t) => t.stop());
+        micStream = null;
+        micAnalyser = null;
+      }
+      speechBuffer = "";setInterim("");
+      state = "ended";
+      updateUiMeta();
+      if (closeApp && window.Telegram && window.Telegram.WebApp) {
+        setTimeout(() => window.Telegram.WebApp.close(), 400);
+      }
+    }
+    endBtn.addEventListener("click",()=>endCall());
+
+    modeChatBtn.addEventListener("click", () => {
+      callMode = "chat";
+      updateUiMeta();
+    });
+
+    modeAgentBtn.addEventListener("click", () => {
+      callMode = "agent";
+      updateUiMeta();
+    });
+
+    languageSelect.addEventListener("change", () => {
+      langCode = languageSelect.value;
+      updateUiMeta();
+      if (state === "listening" && !isMuted) startListening();
+    });
+
+    sttSelect.addEventListener("change", () => {
+      sttMode = sttSelect.value === "auto" && SpeechRecognition ? "auto" : "whisper";
+      updateUiMeta();
+      if (state === "listening" && !isMuted) startListening();
+    });
+
+    const uiReduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
+    let settingsMotion=null,settingsClosing=false;
+    function openSettings(){
+      if(settingsDialog.open&&!settingsClosing)return;
+      settingsClosing=false;settingsMotion?.cancel();settingsDialog.removeAttribute('data-closing');
+      if(!settingsDialog.open)settingsDialog.showModal();
+      settingsBtn.setAttribute('aria-expanded','true');
+      if(uiReduceMotion.matches)return;
+      const mobile=matchMedia('(max-width: 639px)').matches;
+      settingsMotion=settingsDialog.animate([
+        {opacity:mobile?1:0,transform:mobile?'translateY(100%)':'translateY(8px) scale(.98)'},
+        {opacity:1,transform:'none'}
+      ],{duration:mobile?260:200,easing:'cubic-bezier(.16,1,.3,1)'});
+    }
+    function closeSettings(){
+      if(!settingsDialog.open||settingsClosing)return;
+      settingsClosing=true;settingsMotion?.cancel();
+      const finish=()=>{const animation=settingsMotion;settingsMotion=null;animation?.cancel();settingsDialog.close();settingsDialog.removeAttribute('data-closing');settingsClosing=false;};
+      if(uiReduceMotion.matches){finish();return;}
+      settingsDialog.setAttribute('data-closing','');
+      const mobile=matchMedia('(max-width: 639px)').matches;
+      settingsMotion=settingsDialog.animate([
+        {opacity:1,transform:'none'},
+        {opacity:mobile?1:0,transform:mobile?'translateY(100%)':'translateY(6px) scale(.98)'}
+      ],{duration:160,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
+      settingsMotion.onfinish=finish;
+    }
+    settingsBtn.addEventListener('click',openSettings);
+    settingsDialog.querySelectorAll('[data-close-settings]').forEach(button=>button.addEventListener('click',closeSettings));
+    settingsDialog.addEventListener('cancel',event=>{event.preventDefault();closeSettings();});
+    settingsDialog.addEventListener('close',()=>{settingsMotion?.cancel();settingsMotion=null;settingsClosing=false;settingsDialog.removeAttribute('data-closing');settingsBtn.setAttribute('aria-expanded','false');settingsBtn.focus();});
+    settingsDialog.addEventListener('click',event=>{
+      if(event.target!==settingsDialog)return;
+      const r=settingsDialog.getBoundingClientRect();
+      if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeSettings();
+    });
+    const audioRing = new SeraChibi.AudioRing(document.getElementById("vizCanvas"));
+    let micButtonLevel=0,micButtonFrame=0;
+    avatar.onFrame = now => {
+      const visualState = isMuted && !["speaking","ended","idle"].includes(state) ? "muted" : state;
+      const input = state === "listening" && !isMuted ? micAnalyser : null;
+      const output = state === "speaking" && !seraAudio.paused && !seraAudio.ended && seraAudio.readyState >= 3 ? avatar.analyser : null;
+      audioRing.draw({state: visualState, analyser: output || input, now});
+      const dt=Math.min(100,Math.max(0,now-(micButtonFrame||now)));micButtonFrame=now;
+      const source=output||input;
+      const activeFeedback=callActive&&(!isMuted||!!output);
+      const target=source?Math.min(1,Math.max(0,(audioRing.rms-.006)/.094)):0;
+      if(!activeFeedback||uiReduceMotion.matches)micButtonLevel=0;
+      else micButtonLevel+=(target-micButtonLevel)*(1-Math.exp(-dt/(target>micButtonLevel?45:160)));
+      // Breathing communicates an active, quiet call; audio takes precedence.
+      const breath=activeFeedback&&!uiReduceMotion.matches?(1-Math.cos(now*Math.PI*2/3200))*.5:0;
+      const scale=1+micButtonLevel*.16+breath*.035*(1-micButtonLevel);
+      const glow=activeFeedback ? .28+micButtonLevel*.62+breath*.12*(1-micButtonLevel):0;
+      mainBtn.style.setProperty('--mic-scale',scale.toFixed(4));
+      mainBtn.style.setProperty('--mic-glow',glow.toFixed(3));
+      mainBtn.dataset.reactiveSource=!activeFeedback?'none':output?'output':input?'input':'breathing';
+      mainBtn.dataset.energy=micButtonLevel.toFixed(4);
+    };
+
+    updateUiMeta();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+*.log
+recordings/
+private/
+context/
+SOUL.md
+USER.md
+MEMORY.md
+CALL_CONTEXT.md
+*.pem
+*.key

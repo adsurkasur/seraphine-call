@@ -1,0 +1,28 @@
+{
+  "version": "manual-ready-v1",
+  "canvas": {
+    "width": 320,
+    "height": 480,
+    "footline_y": 458
+  },
+  "expressions": {
+    "neutral": {
+      "closed": "neutral_closed.png",
+      "open": "neutral_open.png"
+    }
+  },
+  "states": {
+    "listening": "listening.png",
+    "thinking": "thinking.png",
+    "ended": "sleep.png"
+  },
+  "blink": {
+    "neutral_closed": "neutral_blink_closed.png",
+    "neutral_open": "neutral_blink_open.png"
+  },
+  "fallback": "neutral",
+  "notes": [
+    "Six user-selected full PNGs only; no old expression art.",
+    "Crossfade does not make independently drawn frames pixel-locked."
+  ]
+}

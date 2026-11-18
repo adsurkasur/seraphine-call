@@ -1,0 +1,20 @@
+[Unit]
+Description=Seraphine Call frontend and voice API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=seraphine
+Group=seraphine
+WorkingDirectory=/srv/seraphine-call
+EnvironmentFile=/etc/seraphine-call.env
+ExecStart=/srv/seraphine-call/.venv/bin/python /srv/seraphine-call/backend/server.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
